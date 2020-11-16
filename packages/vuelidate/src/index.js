@@ -16,7 +16,7 @@ export const CollectFlag = {
  * @param {String | Number} params.$scope - Parent component scope
  * @return {{sendValidationResultsToParent: function, childResults: ComputedRef<Object>, removeValidationResultsFromParent: function}}
  */
-function nestedValidations ({ $scope = CollectFlag.COLLECT_ALL }) {
+function nestedValidations ({ $scope }) {
   const childResultsRaw = {}
   const childResultsKeys = ref([])
   const childResults = computed(() => childResultsKeys.value.reduce((results, key) => {
@@ -31,7 +31,7 @@ function nestedValidations ({ $scope = CollectFlag.COLLECT_ALL }) {
    * @param {String} args.$registerAs - the $registeredAs key
    * @param {String | Number} args.$scope - the $scope key
    */
-  function injectChildResultsIntoParent (results, { $registerAs: key, $scope: childScope = CollectFlag.COLLECT_ALL }) {
+  function injectChildResultsIntoParent (results, { $registerAs: key, $scope: childScope }) {
     if (
       $scope === CollectFlag.COLLECT_NONE ||
       childScope === CollectFlag.COLLECT_NONE ||
@@ -79,7 +79,7 @@ function nestedValidations ({ $scope = CollectFlag.COLLECT_ALL }) {
  * @return {UnwrapRef<*>}
  */
 export function useVuelidate (validations, state, globalConfig = {}) {
-  let { $registerAs, $scope } = globalConfig
+  let { $registerAs, $scope = CollectFlag.COLLECT_ALL } = globalConfig
   const canOptimize = !globalConfig.$deoptimize || !validations || (validations && !isRef(validations))
 
   const instance = getCurrentInstance()
