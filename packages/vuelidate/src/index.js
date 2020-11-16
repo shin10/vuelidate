@@ -5,7 +5,18 @@ import { setValidations } from './core'
 const VuelidateInjectChildResults = Symbol('vuelidate#injectChiildResults')
 const VuelidateRemoveChildResults = Symbol('vuelidate#removeChiildResults')
 
-function nestedValidations () {
+export const CollectFlag = {
+  COLLECT_ALL: 1,
+  COLLECT_NONE: 0
+}
+
+/**
+ * Create helpers to collect validation state from child components
+ * @param {Object} params
+ * @param {String | Number} params.$scope - Parent component scope
+ * @return {{sendValidationResultsToParent: function, childResults: ComputedRef<Object>, removeValidationResultsFromParent: function}}
+ */
+function nestedValidations ({ $scope = CollectFlag.COLLECT_ALL }) {
   const childResultsRaw = {}
   const childResultsKeys = ref([])
   const childResults = computed(() => childResultsKeys.value.reduce((results, key) => {
@@ -16,9 +27,19 @@ function nestedValidations () {
   /**
    * Allows children to send validation data up to their parent.
    * @param {Object} results - the results
-   * @param {String} key - the registeredAs key
+   * @param {Object} args
+   * @param {String} args.$registerAs - the $registeredAs key
+   * @param {String | Number} args.$scope - the $scope key
    */
-  function injectChildResultsIntoParent (results, key) {
+  function injectChildResultsIntoParent (results, { $registerAs: key, $scope: childScope = CollectFlag.COLLECT_ALL }) {
+    if (
+      $scope === CollectFlag.COLLECT_NONE ||
+      childScope === CollectFlag.COLLECT_NONE ||
+      (
+        $scope !== CollectFlag.COLLECT_ALL &&
+        $scope !== childScope
+      )
+    ) return
     childResultsRaw[key] = results
     childResultsKeys.value.push(key)
   }
@@ -34,6 +55,7 @@ function nestedValidations () {
     delete childResultsRaw[key]
   }
 
+  // inject the `injectChildResultsIntoParent` method, into the current scope
   const sendValidationResultsToParent = inject(VuelidateInjectChildResults, () => {})
   // provide to all of it's children the send results to parent function
   provide(VuelidateInjectChildResults, injectChildResultsIntoParent)
@@ -50,11 +72,14 @@ function nestedValidations () {
  * Use inside the `setup` lifecycle hook
  * @param {Object|null} validations - Validations Object
  * @param {Object} state - State object
- * @param {String} globalConfig - Config Object
+ * @param {Object} [globalConfig = {}] - Config Object
+ * @param {String} [globalConfig.$registerAs] - Config Object
+ * @param {String | Number} [globalConfig.$scope] - A scope to limit child component registration
+ * @param {Boolean} [globalConfig.$deoptimize] - A flag to force dynamic validation schemes
  * @return {UnwrapRef<*>}
  */
 export function useVuelidate (validations, state, globalConfig = {}) {
-  let { $registerAs } = globalConfig
+  let { $registerAs, $scope } = globalConfig
   const canOptimize = !globalConfig.$deoptimize || !validations || (validations && !isRef(validations))
 
   const instance = getCurrentInstance()
@@ -70,7 +95,7 @@ export function useVuelidate (validations, state, globalConfig = {}) {
   const validationResults = ref({})
   const resultsCache = new Map()
 
-  const { childResults, sendValidationResultsToParent, removeValidationResultsFromParent } = nestedValidations()
+  const { childResults, sendValidationResultsToParent, removeValidationResultsFromParent } = nestedValidations({ $scope })
 
   // Options API
   if (!validations && instance.type.validations) {
@@ -124,7 +149,7 @@ export function useVuelidate (validations, state, globalConfig = {}) {
   }
 
   // send all the data to the parent when the function is invoked inside setup.
-  sendValidationResultsToParent(validationResults, $registerAs)
+  sendValidationResultsToParent(validationResults, { $registerAs, $scope })
   // before this component is destroyed, remove all the data from the parent.
   onBeforeUnmount(() => removeValidationResultsFromParent($registerAs))
 

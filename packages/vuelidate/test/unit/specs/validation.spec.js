@@ -12,7 +12,7 @@ import {
 } from '../validations.fixture'
 import { createSimpleWrapper, shouldBePristineValidationObj, shouldBeInvalidValidationObject, shouldBeErroredValidationObject } from '../utils'
 import { withAsync } from '@vuelidate/validators/src/common'
-import useVuelidate from '../../../src'
+import useVuelidate, { CollectFlag } from '../../../src'
 
 describe('useVuelidate', () => {
   it('should have a `v` key defined if used', () => {
@@ -303,6 +303,61 @@ describe('useVuelidate', () => {
       childState = vm.v.$getResultsForChild(childValidationRegisterName)
       expect(childState).toBeFalsy()
       // there are no errors at all
+      expect(vm.v.$errors).toEqual([])
+    })
+
+    it('collects all child validation results, if parent `$scope` is not set', async () => {
+      const { childValidationRegisterName, parent, state } = nestedComponentValidation({ childScope: 'child' })
+      const { vm } = mount(parent)
+      shouldBeInvalidValidationObject({ v: vm.v, property: 'number', validatorName: 'isEven' })
+      state.number.value = 3
+      await vm.$nextTick()
+      expect(vm.v.$errors).toHaveLength(1)
+      let childState = vm.v.$getResultsForChild(childValidationRegisterName)
+      expect(childState).toBeTruthy()
+    })
+
+    it('collects all child validation results, if both have the same `$scope`', async () => {
+      const { childValidationRegisterName, parent, state } = nestedComponentValidation({ parentScope: 'sameScope', childScope: 'sameScope' })
+      const { vm } = mount(parent)
+      shouldBeInvalidValidationObject({ v: vm.v, property: 'number', validatorName: 'isEven' })
+      state.number.value = 3
+      await vm.$nextTick()
+      expect(vm.v.$errors).toHaveLength(1)
+      let childState = vm.v.$getResultsForChild(childValidationRegisterName)
+      expect(childState).toBeTruthy()
+    })
+
+    it('does not collect child validation results, if components have different `$scope`', async () => {
+      const { childValidationRegisterName, parent, state } = nestedComponentValidation({ parentScope: 'parent', childScope: 'child' })
+      const { vm } = mount(parent)
+      shouldBePristineValidationObj(vm.v)
+      state.number.value = 3
+      await vm.$nextTick()
+      const childState = vm.v.$getResultsForChild(childValidationRegisterName)
+      expect(childState).toEqual(undefined)
+      expect(vm.v.$errors).toEqual([])
+    })
+
+    it('does not collect child validation, if child `$scope` is `COLLECT_NONE`', async () => {
+      const { childValidationRegisterName, parent, state } = nestedComponentValidation({ childScope: CollectFlag.COLLECT_NONE })
+      const { vm } = mount(parent)
+      shouldBePristineValidationObj(vm.v)
+      state.number.value = 3
+      await vm.$nextTick()
+      const childState = vm.v.$getResultsForChild(childValidationRegisterName)
+      expect(childState).toEqual(undefined)
+      expect(vm.v.$errors).toEqual([])
+    })
+
+    it('does not collect child validations, if parent `$scope` is `COLLECT_NONE`', async () => {
+      const { childValidationRegisterName, parent, state } = nestedComponentValidation({ parentScope: CollectFlag.COLLECT_NONE })
+      const { vm } = mount(parent)
+      shouldBePristineValidationObj(vm.v)
+      state.number.value = 3
+      await vm.$nextTick()
+      const childState = vm.v.$getResultsForChild(childValidationRegisterName)
+      expect(childState).toEqual(undefined)
       expect(vm.v.$errors).toEqual([])
     })
   })
